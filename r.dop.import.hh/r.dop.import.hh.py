@@ -4,20 +4,10 @@
 #
 # MODULE:      r.dop.import.hh
 # AUTHOR(S):   Johannes Halbauer, Anika Weinmann, Leon Louwarts
-#
-# PURPOSE:     Downloads DOPs for Hamburg and aoi
-# COPYRIGHT:   (C) 2026 by mundialis GmbH & Co. KG and the GRASS
-#              Development Team
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# PURPOSE:     Downloads Digital Orthophotos (DOPs) for Hamburg and AOI
+# SPDX-FileCopyrightText: (c) 2026by mundialis GmbH & Co. KG and the
+#                             GRASS Development Team
+# SPDX-License-Identifier: GPL-3.0-or-later.
 #
 ############################################################################
 
@@ -182,8 +172,18 @@ def main():
     # or current region if no AOI is given
     url_tiles = get_list_of_tindex_locations(tindex_vect, aoi)
 
-    for count, value in enumerate(url_tiles, start=1):
-        url_tiles[count - 1] = (count, [value])
+    fixed_tiles = []
+
+    for entry in url_tiles:
+        if isinstance(entry, list):
+            entry = entry[0]
+
+        urls = [u.strip() for u in entry.split(",")]
+        fixed_tiles.append(urls)
+
+    # for count, value in enumerate(url_tiles, start=1):
+    #     url_tiles[count - 1] = (count, [value])
+    url_tiles = [(i + 1, urls) for i, urls in enumerate(fixed_tiles)]
     number_tiles = len(url_tiles)
 
     # set number of parallel processes to number of tiles
@@ -215,7 +215,7 @@ def main():
                 )
             param = {
                 "tile_key": key,
-                "tile_url": tile[1][0],
+                "tile_urls": ",".join(tile[1]),
                 "raster_name": raster_name,
                 "orig_region": ORIG_REGION,
                 "memory": 1000,

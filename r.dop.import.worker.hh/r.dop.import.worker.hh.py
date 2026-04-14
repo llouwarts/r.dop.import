@@ -2,23 +2,13 @@
 #
 ############################################################################
 #
-# MODULE:      r.dop.import.worker.sn
+# MODULE:      r.dop.import.worker.hh
 # AUTHOR(S):   Johannes Halbauer, Lina Krisztian, Leon Louwarts
-#
 # PURPOSE:     Downloads Digital Orthophotos (DOPs) within a specified area
 #              in Hamburg
-# COPYRIGHT:   (C) 2026 by mundialis GmbH & Co. KG and the GRASS Development
-#              Team
-#
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
+# SPDX-FileCopyrightText: (c) 2026by mundialis GmbH & Co. KG and the
+#                             GRASS Development Team
+# SPDX-License-Identifier: GPL-3.0-or-later.
 #
 #############################################################################
 
@@ -50,9 +40,12 @@
 # %end
 
 # %option
-# % key: tile_url
+# % key: tile_urls
 # % required: yes
-# % description: URL of tile-DOP to import
+# % multiple: no
+# % key_desc: url[,url,...]
+# % label: Input DOP tile URLs
+# % description: Comma-separated list of URLs of DOP tiles to import; multiple tiles will be merged before import
 # %end
 
 # %option
@@ -102,6 +95,10 @@
 
 import atexit
 import sys
+import os
+from osgeo import gdal
+import urllib.request
+import tempfile
 
 import grass.script as grass
 from grass.pygrass.utils import get_lib_path
@@ -149,7 +146,7 @@ def main():
     global gisdbase, TMP_LOC, TMP_GISRC
     # parser options
     tile_key = options["tile_key"]
-    tile_url = options["tile_url"]
+    tile_urls = options["tile_urls"].split(",")
     raster_name = options["raster_name"]
     resolution_to_import = None
     if options["resolution_to_import"]:
@@ -178,12 +175,42 @@ def main():
 
     # import DOP tile with original resolution
     grass.message(
-        _(f"Started DOP import for key: {tile_key} and URL: {tile_url}."),
+        _(f"Started DOP import for key: {tile_key} with {len(tile_urls)} URL(s)."),
     )
 
-    # import and reproject DOP tiles based on tileindex
+    downloaded_files = []
+
+    for url in tile_urls:
+        filename = os.path.basename(url)
+        local_path = os.path.join(download_dir,filename)
+
+        if not os.path.exists(local_path):
+            grass.message(_(f"Downloading: {url}"))
+            urllib.request.urlretrieve(url, local_path)
+
+        downloaded_files.append(local_path)
+
+    # merge DOPs if necessary
+    if len(downloaded_files) > 1:
+        merged_file = os.path.join(
+            download_dir, f"merged_{tile_key}_{os.getpid()}.tif"
+        )
+
+        grass.message(_(f"Merging {len(downloaded_files)} DOPparts..."))
+
+        gdal.Warp(
+            merged_file,
+            downloaded_files,
+            format="GTiff"
+        )
+
+        input_file = merged_file
+    else:
+        input_file = downloaded_files[0]
+
+    # import tif
     gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
-        tile_url,
+        input_file,
         raster_name,
         resolution_to_import,
         "HH",
@@ -192,6 +219,24 @@ def main():
         epsg=25832,
         keep_data=keep_data,
     )
+
+    # copy raster from TMP Location to worker mapset
+    for band in [1, 2, 3, 4]:
+        src = f"{raster_name}.{band}@{TMP_LOC}"
+        dst = f"{raster_name}.{band}"
+        grass.run_command(
+            "g.copy",
+            raster=f"{src},{dst}",
+            quiet=True,
+    )
+
+    # base = os.path.basename(input_file).split(".")[0]
+
+    # for band in [1, 2, 3, 4]:
+    #     grass.run_command(
+    #         "g.rename",
+    #         raster=f"{base}.{band},{raster_name}.{band}"
+    #     )
 
     # adjust resolution if required
     if resolution_to_import:
@@ -221,7 +266,7 @@ def main():
     switch_back_original_location(gisrc)
     grass.utils.try_remove(newgisrc)
     grass.message(
-        _(f"DOP import for key: {tile_key} and URL: {tile_url} done!"),
+        _(f"DOP import for key: {tile_key} done!"),
     )
 
 
