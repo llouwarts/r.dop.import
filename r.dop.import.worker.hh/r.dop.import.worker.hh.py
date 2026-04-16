@@ -42,8 +42,6 @@
 # %option
 # % key: tile_urls
 # % required: yes
-# % multiple: no
-# % key_desc: url[,url,...]
 # % label: Input DOP tile URLs
 # % description: Comma-separated list of URLs of DOP tiles to import; multiple tiles will be merged before import
 # %end
@@ -95,10 +93,6 @@
 
 import atexit
 import sys
-import os
-from osgeo import gdal
-import urllib.request
-import tempfile
 
 import grass.script as grass
 from grass.pygrass.utils import get_lib_path
@@ -175,68 +169,57 @@ def main():
 
     # import DOP tile with original resolution
     grass.message(
-        _(f"Started DOP import for key: {tile_key} with {len(tile_urls)} URL(s)."),
+        _(
+            f"Started DOP import for key: {tile_key} with {len(tile_urls)} URL(s)."
+        ),
     )
+    # import pdb; pdb.set_trace()
+    imported_rasters = []
 
-    downloaded_files = []
+    for i, url in enumerate(tile_urls):
+        part_name = f"{raster_name}_part{i}"
+        try:
+            gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
+                url,
+                part_name,
+                resolution_to_import,
+                "HH",
+                aoi_map,
+                download_dir,
+                epsg=25832,
+                keep_data=keep_data,
+            )
+        except Exception as e:
+            grass.warning(f"Import failed (no overlap likely) {url}")
+            continue
 
-    for url in tile_urls:
-        filename = os.path.basename(url)
-        local_path = os.path.join(download_dir,filename)
+        if not grass.find_file(part_name, element="cell")["name"]:
+            grass.warning(f"Raster not created: {url}")
+            continue
 
-        if not os.path.exists(local_path):
-            grass.message(_(f"Downloading: {url}"))
-            urllib.request.urlretrieve(url, local_path)
+        test_raster = f"{part_name}.1"
+        exists = grass.find_file(test_raster, element="cell")["name"]
 
-        downloaded_files.append(local_path)
+        if not exists:
+            grass.warning(f"Skipping empty tile: {url}")
+            continue
 
-    # merge DOPs if necessary
-    if len(downloaded_files) > 1:
-        merged_file = os.path.join(
-            download_dir, f"merged_{tile_key}_{os.getpid()}.tif"
-        )
+        imported_rasters.append(part_name)
 
-        grass.message(_(f"Merging {len(downloaded_files)} DOPparts..."))
-
-        gdal.Warp(
-            merged_file,
-            downloaded_files,
-            format="GTiff"
-        )
-
-        input_file = merged_file
-    else:
-        input_file = downloaded_files[0]
-
-    # import tif
-    gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
-        input_file,
-        raster_name,
-        resolution_to_import,
-        "HH",
-        aoi_map,
-        download_dir,
-        epsg=25832,
-        keep_data=keep_data,
-    )
-
-    # copy raster from TMP Location to worker mapset
-    for band in [1, 2, 3, 4]:
-        src = f"{raster_name}.{band}@{TMP_LOC}"
-        dst = f"{raster_name}.{band}"
+    # merge in case of multiple DOPs
+    if len(imported_rasters) > 1:
         grass.run_command(
-            "g.copy",
-            raster=f"{src},{dst}",
-            quiet=True,
-    )
-
-    # base = os.path.basename(input_file).split(".")[0]
-
-    # for band in [1, 2, 3, 4]:
-    #     grass.run_command(
-    #         "g.rename",
-    #         raster=f"{base}.{band},{raster_name}.{band}"
-    #     )
+            "r.patch",
+            input=",".join(imported_rasters),
+            output=raster_name,
+        )
+    elif len(imported_rasters) == 1:
+        grass.run_command(
+            "g.rename",
+            raster=f"{imported_rasters[0]},{raster_name}",
+        )
+    else:
+        grass.fatal(f"No valid rasters for tile {tile_key}")
 
     # adjust resolution if required
     if resolution_to_import:

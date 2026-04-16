@@ -5,7 +5,7 @@
 # MODULE:      r.dop.import.hh
 # AUTHOR(S):   Johannes Halbauer, Anika Weinmann, Leon Louwarts
 # PURPOSE:     Downloads Digital Orthophotos (DOPs) for Hamburg and AOI
-# SPDX-FileCopyrightText: (c) 2026by mundialis GmbH & Co. KG and the
+# SPDX-FileCopyrightText: (c) 2026 by mundialis GmbH & Co. KG and the
 #                             GRASS Development Team
 # SPDX-License-Identifier: GPL-3.0-or-later.
 #
@@ -232,7 +232,7 @@ def main():
             if flags["k"]:
                 param["flags"] += "k"
             if flags["r"]:
-                dop_src = gdal.Open(param["tile_url"])
+                dop_src = gdal.Open(tile[1][0])
                 param["resolution_to_import"] = abs(
                     dop_src.GetGeoTransform()[1],
                 )
@@ -251,6 +251,7 @@ def main():
 
             # run worker addon in parallel
             r_dop_import_worker_hh = Module(
+                # grass.run_command(
                 "r.dop.import.worker.hh",
                 **param,
                 run_=False,
