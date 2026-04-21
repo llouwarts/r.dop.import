@@ -272,14 +272,56 @@ def main():
                     _(f"\nERROR by processing <{proc.get_bash()}>: {errmsg}"),
                 )
 
+    grass.message(_("Checking imported rasters..."))
+
+    # filter for existing rasters per band
+    for band, b_list in all_raster.items():
+        existing = []
+        for raster_ref in b_list:
+            raster_name_only = raster_ref.split("@")[0]
+            mapset = raster_ref.split("@")[1]
+
+            # check if raster exists
+            check = grass.find_file(
+                raster_name_only, element="cell", mapset=mapset,
+            )
+            if check["name"]:
+                existing.append(raster_ref)
+
+        grass.message(
+            _(
+                f"Band {band}: {len(existing)} of {len(b_list)}"
+                "tiles successfully imported",
+            ),
+        )
+
+    # check if raster were actually created
+    total_imported = sum(len(b_list) for b_list in all_raster.values())
+    if total_imported == 0:
+        grass.fatal(
+            "No rasters were successfully imported!"
+            "Check if AOI overlaps with available DOP tiles.",
+        )
+
     # create one vrt per band of all imported DOPs
     raster_out = []
     for band, b_list in all_raster.items():
+        if not b_list:
+            grass.warning(f"Skipping band {band} - no rasters available")
+            continue
         out = f"{output}_{band}"
         create_vrt(b_list, out)
         raster_out.append(out)
 
-    grass.message(_(f"Generated following raster maps: {raster_out}"))
+    if not raster_out:
+        grass.fatal("No output rasters could be created")
+
+    grass.message(
+        _(
+            f"Successfully generated {len(raster_out)} raster maps:"
+            "{raster_out}",
+        ),
+    )
 
 
 if __name__ == "__main__":
