@@ -54,7 +54,8 @@ OPEN_DATA_AVAILABILITY = {
     ],
 }
 
-RETRIES = 30
+# TODO: überall als Funktions Argument übergeben
+# RETRIES = 30
 WAITING_TIME = 10
 
 
@@ -379,6 +380,7 @@ def import_and_reproject(
     download_dir=None,
     epsg=None,
     keep_data=None,
+    retries=30,
 ):
     """Import DOPs and reproject them if needed.
 
@@ -493,21 +495,22 @@ def import_and_reproject(
             )
 
     # import data
-    import_sucess = False
+    trydownload = True
     tries = 0
-    while not import_sucess:
-        tries += 1
-        if tries > RETRIES:
-            grass.fatal(
-                _(
-                    f"Importing {kwargs['input']} failed after {RETRIES} "
-                    "retries.",
-                ),
-            )
+    while trydownload:
         try:
+            tries += 1
             grass.run_command("r.import", **kwargs)
-            import_sucess = True
+            trydownload = False
         except Exception:
+            if tries > retries:
+                grass.fatal(
+                    _(
+                        f"Importing {kwargs['input']} failed after {retries} "
+                        "retries.",
+                    ),
+                )
+            grass.message(_(f"retry download: {tries}/{retries}"))
             sleep(WAITING_TIME)
     if not aoi_map:
         grass.run_command("g.region", raster=f"{raster_name}.1")

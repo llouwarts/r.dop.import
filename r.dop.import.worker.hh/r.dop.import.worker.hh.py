@@ -188,6 +188,7 @@ def main():
                 download_dir,
                 epsg=25832,
                 keep_data=keep_data,
+                retries=0,
             )
 
             # check if Band 1 exists
@@ -196,37 +197,20 @@ def main():
                 imported_rasters.append(part_name)
                 grass.message(
                     _(
-                        f"Successfully imported part {i + 1}/{len(tile_urls)}:"
-                        "{os.path.basename(url)}",
+                        f"Successfully imported part {i + 1}/{len(tile_urls)}."
                     ),
                 )
-            else:
-                grass.verbose(
-                    _(
-                        f"Skipping part {i + 1}/{len(tile_urls)}"
-                        "(no overlap with AOI): {os.path.basename(url)}",
-                    ),
-                )
-
-        except Exception as e:
-            error_msg = str(e)
-            if (
-                "does not overlap" in error_msg
-                or "Nothing to import" in error_msg
-            ):
-                grass.verbose(
-                    _(
-                        f"Part {i + 1}/{len(tile_urls)} outside AOI:"
-                        "{os.path.basename(url)}",
-                    ),
-                )
-            else:
-                grass.warning(
-                    f"Import failed for part {i + 1}/{len(tile_urls)}:"
-                    f"{error_msg}",
-                )
+        except SystemExit as e:
+            # grass.fatal() from import_and_reproject raises sys.exit(1)
+            grass.warning(
+                _(
+                    f"Import failed for part {i + 1}/{len(tile_urls)}."
+                ),
+            )
             continue
+    import pdb; pdb.set_trace()
 
+    # TODO: loop for band 1 - 4: f"{part_name}.1", f"{part_name}.2", etc. 
     # merge in case of multiple DOPs
     if len(imported_rasters) > 1:
         grass.message(
@@ -243,17 +227,16 @@ def main():
         # cleanup of single parts
         for part in imported_rasters:
             rm_group.append(part)
-
     elif len(imported_rasters) == 1:
         grass.run_command(
             "g.rename",
             raster=f"{imported_rasters[0]},{raster_name}",
         )
     else:
-        grass.warning(
+        grass.fatal(
             _(
                 f"Tile {tile_key}: None of the {len(tile_urls)} DOP(s)"
-                "overlap with AOI. Skipping entire tile.",
+                "could be imported successfully.",
             ),
         )
 
