@@ -178,36 +178,33 @@ def main():
     # import pdb; pdb.set_trace()
     for i, url in enumerate(tile_urls):
         part_name = f"{raster_name}_part{i}"
-        try:
-            gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
-                url,
-                part_name,
-                resolution_to_import,
-                "HH",
-                aoi_map,
-                download_dir,
-                epsg=25832,
-                keep_data=keep_data,
-                retries=0,
-            )
+        gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
+            url,
+            part_name,
+            resolution_to_import,
+            "HH",
+            aoi_map,
+            download_dir,
+            epsg=25832,
+            keep_data=keep_data,
+            retries=5,
+        )
 
-            # check if Band 1 exists
-            test_raster = f"{part_name}.1"
-            if grass.find_file(test_raster, element="cell")["name"]:
-                imported_rasters.append(part_name)
-                grass.message(
-                    _(
-                        f"Successfully imported part {i + 1}/{len(tile_urls)}."
-                    ),
-                )
-        except SystemExit as e:
-            # grass.fatal() from import_and_reproject raises sys.exit(1)
-            grass.warning(
+        # check if Band 1 exists (if no overlap: grass warning)
+        test_raster = f"{part_name}.1"
+        if grass.find_file(test_raster, element="cell")["name"]:
+            imported_rasters.append(part_name)
+            grass.message(
                 _(
-                    f"Import failed for part {i + 1}/{len(tile_urls)}."
+                    f"Successfully imported part {i + 1}/{len(tile_urls)}."
                 ),
             )
-            continue
+        else:
+            grass.warning(
+                _(
+                    f"TODO sth like: {url} {i + 1} could not be imported (no overlap). "
+                ),
+            )
     import pdb; pdb.set_trace()
 
     # TODO: loop for band 1 - 4: f"{part_name}.1", f"{part_name}.2", etc. 

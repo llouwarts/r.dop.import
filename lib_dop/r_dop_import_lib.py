@@ -55,7 +55,7 @@ OPEN_DATA_AVAILABILITY = {
 }
 
 # TODO: überall als Funktions Argument übergeben
-# RETRIES = 30
+RETRIES = 30
 WAITING_TIME = 10
 
 
@@ -252,6 +252,7 @@ def import_dop_from_wms(
         while trydownload:
             try:
                 count += 1
+                import pdb; pdb.set_trace()
                 grass.run_command(
                     "r.in.wms",
                     url=tile_url,
@@ -276,6 +277,7 @@ def import_dop_from_wms(
                 sleep(10)
 
         # change band name to band number
+        import pdb; pdb.set_trace()
         band_nums = {
             "red": 1,
             "green": 2,
@@ -503,6 +505,14 @@ def import_and_reproject(
             grass.run_command("r.import", **kwargs)
             trydownload = False
         except Exception:
+            # TODO: check if error is "no overlap with current region"
+            # dann nicht retryen, sondern direkt mit grass.warning (!) beenden
+            if "no overlap with current region":
+                grass.warning("TODO")
+                if location_switch:
+                    # switch location
+                    os.environ["GISRC"] = str(gisrc)
+                return gisdbase, tmp_loc, tmp_gisrc
             if tries > retries:
                 grass.fatal(
                     _(
