@@ -210,6 +210,7 @@ def import_dop_from_wms(
     rm_rast,
     native_res,
     data_format="tiff",
+    retries=30,
 ):
     """Import DOPs from WMS
     Args:
@@ -221,6 +222,7 @@ def import_dop_from_wms(
         rm_group (list): List of elements to remove in cleanup
         rm_rast (list): List of raster maps to remove in cleanup
         native_res (bool): Keep native DOP resolution
+        retries (int): Set how often function is retried
 
     Returns:
         rm_group (list): Extended list of elements to remove in cleanup
@@ -270,7 +272,7 @@ def import_dop_from_wms(
                     flags="f",
                 )
                 grass.message(_("Retry download..."))
-                if count > (RETRIES / 2):
+                if count > (retries / 2):
                     grass.fatal(f"Download of {tile_url} not working.")
                 sleep(10)
 
@@ -379,6 +381,7 @@ def import_and_reproject(
     download_dir=None,
     epsg=None,
     keep_data=None,
+    retries=30,
 ):
     """Import DOPs and reproject them if needed.
 
@@ -392,6 +395,7 @@ def import_and_reproject(
         epsg (int): EPSG code which has to be set if the reproduction should be
                     done manually and not by r.import
         keep_data (bool): Download raster data to local directory and keep it
+        retries (int): Set how often function is retried
 
     Returns:
         gisdbase (str): Path to GISDBASE
@@ -493,21 +497,38 @@ def import_and_reproject(
             )
 
     # import data
-    import_sucess = False
+    # import_sucess = False
+    trydownload = True
     tries = 0
-    while not import_sucess:
-        tries += 1
-        if tries > RETRIES:
-            grass.fatal(
-                _(
-                    f"Importing {kwargs['input']} failed after {RETRIES} "
-                    "retries.",
-                ),
-            )
+    # while not import_sucess:
+    #     tries += 1
+    #     if tries > RETRIES:
+    #         grass.fatal(
+    #             _(
+    #                 f"Importing {kwargs['input']} failed after {RETRIES} "
+    #                 "retries.",
+    #             ),
+    #         )
+    while trydownload:
         try:
+            tries += 1
             grass.run_command("r.import", **kwargs)
-            import_sucess = True
+            # import_sucess = True
+            trydownload = False
         except Exception:
+            if "no overlap with current region":
+                grass.warning("No overlap with current region")
+                if location_switch:
+                    os.environ["GISRC"] = str(gisrc)
+                return gisdbase, tmp_loc, tmp_gisrc
+            if tries > retries:
+                grass.fatal(
+                    _(
+                        f"Importing {kwargs['input']} failed after {retries} "
+                        "retries.",
+                    ),
+                )
+            grass.message(_(f"retry download: {tries}/{retries}"))
             sleep(WAITING_TIME)
     if not aoi_map:
         grass.run_command("g.region", raster=f"{raster_name}.1")

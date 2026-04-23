@@ -175,57 +175,36 @@ def main():
     )
 
     imported_rasters = []
-    # import pdb; pdb.set_trace()
+
     for i, url in enumerate(tile_urls):
         part_name = f"{raster_name}_part{i}"
-        try:
-            gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
-                url,
-                part_name,
-                resolution_to_import,
-                "HH",
-                aoi_map,
-                download_dir,
-                epsg=25832,
-                keep_data=keep_data,
+        gisdbase, TMP_LOC, TMP_GISRC = import_and_reproject(
+            url,
+            part_name,
+            resolution_to_import,
+            "HH",
+            aoi_map,
+            download_dir,
+            epsg=25832,
+            keep_data=keep_data,
+            retries=5,
+        )
+
+        # check if Band 1 exists (if no overlap: grass warning)
+        test_raster = f"{part_name}.1"
+        if grass.find_file(test_raster, element="cell")["name"]:
+            imported_rasters.append(part_name)
+            grass.message(
+                _(
+                    f"Successfully imported part {i + 1}/{len(tile_urls)}.",
+                ),
             )
-
-            # check if Band 1 exists
-            test_raster = f"{part_name}.1"
-            if grass.find_file(test_raster, element="cell")["name"]:
-                imported_rasters.append(part_name)
-                grass.message(
-                    _(
-                        f"Successfully imported part {i + 1}/{len(tile_urls)}:"
-                        "{os.path.basename(url)}",
-                    ),
-                )
-            else:
-                grass.verbose(
-                    _(
-                        f"Skipping part {i + 1}/{len(tile_urls)}"
-                        "(no overlap with AOI): {os.path.basename(url)}",
-                    ),
-                )
-
-        except Exception as e:
-            error_msg = str(e)
-            if (
-                "does not overlap" in error_msg
-                or "Nothing to import" in error_msg
-            ):
-                grass.verbose(
-                    _(
-                        f"Part {i + 1}/{len(tile_urls)} outside AOI:"
-                        "{os.path.basename(url)}",
-                    ),
-                )
-            else:
-                grass.warning(
-                    f"Import failed for part {i + 1}/{len(tile_urls)}:"
-                    f"{error_msg}",
-                )
-            continue
+        else:
+            grass.warning(
+                _(
+                    f"{url} {i + 1} could not be imported (no overlap).",
+                ),
+            )
 
     # merge in case of multiple DOPs
     if len(imported_rasters) > 1:
@@ -235,25 +214,31 @@ def main():
                 "raster parts for tile {tile_key}...",
             ),
         )
-        grass.run_command(
-            "r.patch",
-            input=",".join(imported_rasters),
-            output=raster_name,
-        )
+        for band in range(1, 5):
+            band_inputs = [f"{part}.{band}" for part in imported_rasters]
+            band_output = f"{raster_name}.{band}"
+            grass.run_command(
+                "r.patch",
+                input=",".join(band_inputs),
+                output=band_output,
+            )
         # cleanup of single parts
         for part in imported_rasters:
-            rm_group.append(part)
-
+            for band in range(1, 5):
+                rm_group.append(f"{part}.{band}")
     elif len(imported_rasters) == 1:
-        grass.run_command(
-            "g.rename",
-            raster=f"{imported_rasters[0]},{raster_name}",
-        )
+        for band in range(1, 5):
+            band_input = f"{imported_rasters[0]}.{band}"
+            band_output = f"{raster_name}.{band}"
+            grass.run_command(
+                "g.rename",
+                raster=f"{band_input},{band_output}",
+            )
     else:
-        grass.warning(
+        grass.fatal(
             _(
                 f"Tile {tile_key}: None of the {len(tile_urls)} DOP(s)"
-                "overlap with AOI. Skipping entire tile.",
+                "could be imported successfully.",
             ),
         )
 

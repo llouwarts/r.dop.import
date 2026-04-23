@@ -283,7 +283,9 @@ def main():
 
             # check if raster exists
             check = grass.find_file(
-                raster_name_only, element="cell", mapset=mapset,
+                raster_name_only,
+                element="cell",
+                mapset=mapset,
             )
             if check["name"]:
                 existing.append(raster_ref)
