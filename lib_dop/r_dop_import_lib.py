@@ -54,6 +54,7 @@ OPEN_DATA_AVAILABILITY = {
     ],
 }
 
+# TODO: überall als Funktions Argument übergeben
 RETRIES = 30
 WAITING_TIME = 10
 
@@ -251,6 +252,7 @@ def import_dop_from_wms(
         while trydownload:
             try:
                 count += 1
+                import pdb; pdb.set_trace()
                 grass.run_command(
                     "r.in.wms",
                     url=tile_url,
@@ -275,6 +277,7 @@ def import_dop_from_wms(
                 sleep(10)
 
         # change band name to band number
+        import pdb; pdb.set_trace()
         band_nums = {
             "red": 1,
             "green": 2,
@@ -379,6 +382,7 @@ def import_and_reproject(
     download_dir=None,
     epsg=None,
     keep_data=None,
+    retries=30,
 ):
     """Import DOPs and reproject them if needed.
 
@@ -493,21 +497,30 @@ def import_and_reproject(
             )
 
     # import data
-    import_sucess = False
+    trydownload = True
     tries = 0
-    while not import_sucess:
-        tries += 1
-        if tries > RETRIES:
-            grass.fatal(
-                _(
-                    f"Importing {kwargs['input']} failed after {RETRIES} "
-                    "retries.",
-                ),
-            )
+    while trydownload:
         try:
+            tries += 1
             grass.run_command("r.import", **kwargs)
-            import_sucess = True
+            trydownload = False
         except Exception:
+            # TODO: check if error is "no overlap with current region"
+            # dann nicht retryen, sondern direkt mit grass.warning (!) beenden
+            if "no overlap with current region":
+                grass.warning("TODO")
+                if location_switch:
+                    # switch location
+                    os.environ["GISRC"] = str(gisrc)
+                return gisdbase, tmp_loc, tmp_gisrc
+            if tries > retries:
+                grass.fatal(
+                    _(
+                        f"Importing {kwargs['input']} failed after {retries} "
+                        "retries.",
+                    ),
+                )
+            grass.message(_(f"retry download: {tries}/{retries}"))
             sleep(WAITING_TIME)
     if not aoi_map:
         grass.run_command("g.region", raster=f"{raster_name}.1")
