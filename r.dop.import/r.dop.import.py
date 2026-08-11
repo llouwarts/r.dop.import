@@ -125,7 +125,6 @@ from grass_gis_helpers.open_geodata_germany.metadata import (
     write_metadata_markdown,
 )
 from grass_gis_helpers.raster import create_vrt
-from grass_gis_helpers.data_import import import_local_raster_data
 
 # import module library
 path = get_lib_path(modname="r.dop.import")
@@ -133,7 +132,10 @@ if path is None:
     grass.fatal("Unable to find the DOP library directory.")
 sys.path.append(path)
 try:
-    from r_dop_import_lib import OPEN_DATA_AVAILABILITY
+    from r_dop_import_lib import (
+        OPEN_DATA_AVAILABILITY,
+        import_local_data,
+    )
     from r_dop_import_metadata_lib import get_download_urls_and_names
 except Exception as imp_err:
     grass.fatal(f"r.dop.import library could not be imported: {imp_err}")
@@ -142,6 +144,7 @@ except Exception as imp_err:
 ID = grass.tempname(12)
 ORIG_REGION = f"original_region_{ID}"
 rm_rasters = []
+rm_groups = []
 SUPPORTED = OPEN_DATA_AVAILABILITY["SUPPORTED"]
 NO_OPEN_DATA = OPEN_DATA_AVAILABILITY["NO_OPEN_DATA"]
 NOT_YET_SUPPORTED = OPEN_DATA_AVAILABILITY["NOT_YET_SUPPORTED"]
@@ -155,43 +158,8 @@ def cleanup():
     general_cleanup(
         orig_region=ORIG_REGION,
         rm_rasters=rm_rasters,
+        rm_groups=rm_groups,
     )
-
-
-def import_local_data(aoi, out, local_data_dir, fs, all_dops, native_res_flag):
-    """Import local DOP data
-
-    Args:
-        aoi (str): Vector map with area of interest
-        out (str): Base output name
-        local_data_dir (str): Path to local data directory with federal state
-                              subfolders
-        fs (str): the abbrivation of the federal state
-        all_dops (list): empty list where the imported DOP rasters
-                         will be appended
-        native_res_flag (bool): True if native data resolution should be used
-
-    """
-    imported_local_data = import_local_raster_data(
-        aoi,
-        f"{out}_{fs}",
-        os.path.join(local_data_dir, fs),
-        native_res_flag,
-        all_dops,
-        rm_rasters,
-        band_dict={1: "red", 2: "green", 3: "blue", 4: "nir"},
-    )
-
-    if not imported_local_data and fs in ["BW"]:
-        grass.fatal(_("Local data does not overlap with AOI."))
-    elif not imported_local_data:
-        grass.message(
-            _(
-                "Local data does not overlap with AOI. Data will be downloaded"
-                " from Open Data portal.",
-            ),
-        )
-    return imported_local_data
 
 
 def get_addon_name(fs):
@@ -220,6 +188,7 @@ def main():
 
     # save original region
     grass.run_command("g.region", save=ORIG_REGION, quiet=True)
+    ns_res = grass.region()["nsres"]
 
     # local DOP files
     local_fs_list = []
@@ -238,15 +207,22 @@ def main():
         # check if local data for federal state given
         imported_local_data = False
         if fs in local_fs_list:
+            all_dops_local = []
+            out_fs = f"dop_{fs}_{ID}"
             imported_local_data = import_local_data(
                 aoi,
-                output,
+                out_fs,
                 local_data_dir,
                 fs,
-                all_dops,
+                all_dops_local,
+                rm_rasters,
+                rm_groups,
                 native_res,
+                ns_res,
             )
             if imported_local_data:
+                for band in ("red", "green", "blue", "nir"):
+                    all_dops[band].append(f"{out_fs}_{band}")
                 fs_dop_list = [
                     f"{output}_{fs}{band}" for band in DOP_BAND_SUFFIXES
                 ]
