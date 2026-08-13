@@ -12,7 +12,6 @@
 ############################################################################
 
 import os
-import subprocess
 from time import sleep
 import grass.script as grass
 
@@ -505,7 +504,7 @@ def import_and_reproject(
         tries += 1
         process = grass.start_command(
             "r.import",
-            stderr=subprocess.PIPE,
+            stderr=grass.PIPE,
             **kwargs,
         )
         _stdout, stderr_output = process.communicate()
