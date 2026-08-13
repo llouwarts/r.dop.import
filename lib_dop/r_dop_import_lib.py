@@ -12,6 +12,7 @@
 ############################################################################
 
 import os
+import subprocess
 from time import sleep
 import grass.script as grass
 
@@ -501,25 +502,41 @@ def import_and_reproject(
     trydownload = True
     tries = 0
     while trydownload:
-        try:
-            tries += 1
-            grass.run_command("r.import", **kwargs)
+        tries += 1
+        process = grass.start_command(
+            "r.import",
+            stderr=subprocess.PIPE,
+            **kwargs,
+        )
+        _stdout, stderr_output = process.communicate()
+        stderr_text = stderr_output or ""
+
+        if process.returncode == 0:
             trydownload = False
-        except Exception:
-            if "no overlap with current region":
-                grass.warning("No overlap with current region")
-                if location_switch:
-                    os.environ["GISRC"] = str(gisrc)
-                return gisdbase, tmp_loc, tmp_gisrc
-            if tries > retries:
-                grass.fatal(
-                    _(
-                        f"Importing {kwargs['input']} failed after {retries} "
-                        "retries.",
-                    ),
-                )
-            grass.message(_(f"retry download: {tries}/{retries}"))
-            sleep(WAITING_TIME)
+            continue
+        if (
+            "does not overlap" in stderr_text
+            or "Nothing to import" in stderr_text
+        ):
+            grass.warning("No overlap with current region")
+            if location_switch:
+                os.environ["GISRC"] = str(gisrc)
+            return gisdbase, tmp_loc, tmp_gisrc
+        if tries > retries:
+            grass.fatal(
+                _(
+                    f"Importing {kwargs['input']} failed after {retries} "
+                    f"retries: {stderr_text.strip()}",
+                ),
+            )
+        backoff = min(WAITING_TIME * (2 ** (tries - 1)), 120)
+        grass.message(
+            _(
+                f"retry download: {tries}/{retries} "
+                f"({stderr_text.strip()[-300:]})",
+            ),
+        )
+        sleep(backoff)
     if not aoi_map:
         grass.run_command("g.region", raster=f"{raster_name}.1")
 

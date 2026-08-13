@@ -79,7 +79,6 @@ import pathlib
 import grass.script as grass
 from grass.pygrass.modules import Module, ParallelModuleQueue
 from grass.pygrass.utils import get_lib_path
-from osgeo import gdal
 
 from grass_gis_helpers.cleanup import general_cleanup
 from grass_gis_helpers.data_import import (
@@ -113,6 +112,7 @@ TINDEX = (
     "https://github.com/mundialis/tile-indices/raw/main/DOP/HH/"
     "DOP20_tileindex_HH.gpkg.gz"
 )
+NATIVE_DOP_RES = 0.2
 
 ID = grass.tempname(12)
 ORIG_REGION = f"original_region_{ID}"
@@ -142,6 +142,14 @@ def main():
     metadata_file = options["metadata_file"]
     output = options["output"]
     fs = "HH"
+
+    # data provider for HH DOPs rate-limits; parallel requests reliably
+    # trigger HTTP 429 errors, so use sequentail processing
+    if nprocs != 1:
+        grass.warning(
+            _("HH data source rate-limits requests; forcing nprocs=1"),
+        )
+    nprocs = 1
 
     # set memory to input if possible
     options["memory"] = test_memory(options["memory"])
@@ -242,9 +250,7 @@ def main():
                 param["flags"] += "k"
             # worker always imports in native resolution;
             # resampling occurs in main script
-            first_url = tile[1][0]
-            dop_src = gdal.Open(first_url)
-            param["resolution_to_import"] = abs(dop_src.GetGeoTransform()[1])
+            param["resolution_to_import"] = NATIVE_DOP_RES
 
             # append raster bands to download to remove list
             rm_red = f"{fs}_{raster_name}_red"
