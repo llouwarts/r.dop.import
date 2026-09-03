@@ -78,6 +78,12 @@
 # % description: Original region
 # %end
 
+# %option
+# % key: resolution_to_import
+# % required: yes
+# % description: Native resolution for downloading DOP tiles from WMS
+# %end
+
 # %option G_OPT_R_OUTPUT
 # % key: raster_name
 # % description: Name of raster output
@@ -136,6 +142,7 @@ def main():
     tile_url_rgb = options["tile_url_rgb"]
     layer_name_cir = options["layer_name_cir"]
     layer_name_rgb = options["layer_name_rgb"]
+    resolution_to_import = float(options["resolution_to_import"])
     raster_name = options["raster_name"]
     orig_region = options["orig_region"]
     new_mapset = options["new_mapset"]
@@ -165,11 +172,10 @@ def main():
         f"{tile_key}@{old_mapset}",
         raster_name,
         {"cir": tile_url_cir, "rgb": tile_url_rgb},
-        None,
+        resolution_to_import,
         {"cir": layer_name_cir, "rgb": layer_name_rgb},
         rm_group,
         rm_rast,
-        native_res=True,
         data_format="jpeg",
     )
 

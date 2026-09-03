@@ -72,6 +72,12 @@
 # % description: Original region
 # %end
 
+# %option
+# % key: resolution_to_import
+# % required: yes
+# % description: Native resolution for downloading DOP tiles from WMS
+# %end
+
 # %option G_OPT_R_OUTPUT
 # % key: raster_name
 # % description: Name of raster output
@@ -135,6 +141,7 @@ def main():
     # parser options
     tile_key = options["tile_key"]
     tile_url = options["tile_url"]
+    resolution_to_import = float(options["resolution_to_import"])
     layer_name_cir = options["layer_name_cir"]
     layer_name_rgb = options["layer_name_rgb"]
     raster_name = options["raster_name"]
@@ -184,11 +191,10 @@ def main():
             f"{tile_key}@{old_mapset}",
             output_raster,
             {"cir": tile_url, "rgb": tile_url},
-            None,
+            resolution_to_import,
             {"cir": cir_layer, "rgb": rgb_layer},
             rm_group,
             rm_rast,
-            native_res=True,  # native_res always True, Resampling occurs in main script
         )
         raster_name_info = grass.raster_info(f"{output_raster}.1")
 

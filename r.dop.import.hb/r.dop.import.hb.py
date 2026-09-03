@@ -250,6 +250,7 @@ def main():
                 "orig_region": ORIG_REGION,
                 "new_mapset": new_mapset,
                 "used_layer_file": used_layers_file,
+                "resolution_to_import": NATIVE_DOP_RES,
                 "flags": "",
             }
             grass.message(_(f"raster name: {raster_name}"))

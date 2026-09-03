@@ -63,7 +63,7 @@
 # %option
 # % key: resolution_to_import
 # % required: no
-# % description: Resolution of region, for which DOP will be imported (only if flag r not set)
+# % description: Resolution of region, for which DOP will be imported
 # %end
 
 # %option G_OPT_R_OUTPUT
@@ -73,11 +73,6 @@
 
 # %option G_OPT_MEMORYMB
 # % description: Memory which is used by all processes (it is divided by nprocs for each single parallel process)
-# %end
-
-# %flag
-# % key: r
-# % description: Use native DOP resolution
 # %end
 
 # %flag

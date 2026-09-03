@@ -209,7 +209,7 @@ def import_dop_from_wms(
     layer_dict,
     rm_group,
     rm_rast,
-    native_res,
+    # native_res,
     data_format="tiff",
     retries=30,
 ):
@@ -231,8 +231,9 @@ def import_dop_from_wms(
     """
     # set region and create variable names
     grass.run_command("g.region", vector=tile_key)
-    if not native_res:
-        grass.run_command("g.region", res=resolution_to_import, flags="a")
+    # if not native_res:
+    #     grass.run_command("g.region", res=resolution_to_import, flags="a")
+    grass.run_command("g.region", res=resolution_to_import, flags="a")
     tile_key = tile_key.split("@")[0]
 
     for key, name in layer_dict.items():
